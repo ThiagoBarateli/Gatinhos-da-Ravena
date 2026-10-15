@@ -40,7 +40,7 @@
             display: block;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain; /* Mantém a proporção exata sem cortar nada da tela */
         }
 
         /* CONTROLES MOBILE FLUTUANTES */
@@ -152,29 +152,42 @@
         const canvas = document.getElementById("canvasJogo");
         const ctx = canvas.getContext("2d");
 
-        // --- ÁUDIOS ---
-        const somPulo = new Audio('som_pulo.mp3');
-        const somGato = new Audio('som_gato.mp3');
-        const somCoracao = new Audio('som_coracao.mp3');
-        const somInimigo = new Audio('som_inimigo.mp3');
-        const somDano = new Audio('som_dano.mp3');
-        const somVitoria = new Audio('som_vitoria.mp3');
+        // --- SISTEMA DE ÁUDIO SEM DELAY (CLONAGEM INSTANTÂNEA) ---
+        function criarAudio(src) {
+            const audio = new Audio(src);
+            audio.load();
+            return audio;
+        }
+
+        const somPulo = 'som_pulo.mp3';
+        const somGato = 'som_gato.mp3';
+        const somCoracao = 'som_coracao.mp3';
+        const somInimigo = 'som_inimigo.mp3';
+        const somDano = 'som_dano.mp3';
+        const somVitoria = 'som_vitoria.mp3';
+        const somBuraco = 'som_buraco.mp3';
+
         const somCorrida = new Audio('som_corrida.mp3');
         somCorrida.loop = true;
-        const somBuraco = new Audio('som_buraco.mp3');
 
         const musicaFase1 = new Audio('musica_fase1.mp3'); musicaFase1.loop = true; musicaFase1.volume = 0.4;
         const musicaFase2 = new Audio('musica_fase2.mp3'); musicaFase2.loop = true; musicaFase2.volume = 0.4;
         let musicaAtual = null;
 
-        function tocarEfeito(audioObj) {
-            try { audioObj.currentTime = 0; audioObj.play().catch(e => {}); } catch (err) {}
+        function tocarEfeito(src) {
+            try {
+                const s = new Audio(src);
+                s.currentTime = 0;
+                s.play().catch(e => {});
+            } catch (err) {}
         }
+
         function alternarMusicaFundo(faseNum) {
             pararMusicaFundo();
             musicaAtual = (faseNum === 0) ? musicaFase1 : musicaFase2;
             musicaAtual.play().catch(e => {});
         }
+
         function pararMusicaFundo() {
             if (musicaFase1) { musicaFase1.pause(); musicaFase1.currentTime = 0; }
             if (musicaFase2) { musicaFase2.pause(); musicaFase2.currentTime = 0; }
@@ -343,7 +356,6 @@
         configurarBotaoToque("btnBaixo", "baixo");
         configurarBotaoToque("btnCima", "pulo");
 
-        // CONFIGURAÇÃO DO BOTÃO "A" PARA FUNCIONAR COMO ENTER QUANDO ESTIVER NO MENU/TELA FINAL
         const btnPulo = document.getElementById("btnPulo");
         if(btnPulo) {
             const acaoBotaoA = (e) => {
@@ -544,6 +556,7 @@
             ctx.save();
             ctx.translate(-cameraX, 0);
 
+            // CORREÇÃO DAS ÁRVORES DE FUNDO (Posicionadas perfeitamente apoiadas no chão)
             for (let plat of fase.plataformas) {
                 if (plat.largura >= 100) {
                     let contador = 0;
@@ -551,14 +564,15 @@
                         contador++;
                         let arvoreEscolhida = (contador % 2 === 0 && imgArvore2.complete) ? imgArvore2 : imgArvore1;
                         if (arvoreEscolhida.complete && arvoreEscolhida.naturalWidth > 0) {
-                            ctx.drawImage(arvoreEscolhida, ax, plat.y - 250 + 25, 200, 270);
+                            let altArvore = 280;
+                            ctx.drawImage(arvoreEscolhida, ax, plat.y - altArvore, 200, altArvore);
                         }
                     }
                 }
             }
 
             if (imgCastelo.complete && imgCastelo.naturalWidth > 0) {
-                ctx.drawImage(imgCastelo, fase.linhaDeChegada - 70, 500 - 500 + 20, 490, 500);
+                ctx.drawImage(imgCastelo, fase.linhaDeChegada - 70, 500 - 480, 490, 480);
             }
 
             for (let plat of fase.plataformas) {
