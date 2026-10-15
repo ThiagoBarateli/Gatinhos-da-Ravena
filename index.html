@@ -40,7 +40,7 @@
             display: block;
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Preenche a tela inteira proporcionalmente sem distorcer */
+            object-fit: cover;
         }
 
         /* CONTROLES MOBILE FLUTUANTES */
@@ -152,7 +152,7 @@
         const canvas = document.getElementById("canvasJogo");
         const ctx = canvas.getContext("2d");
 
-        // --- CARREGAMENTO DE ÁUDIOS REAIS ---
+        // --- ÁUDIOS ---
         const somPulo = new Audio('som_pulo.mp3');
         const somGato = new Audio('som_gato.mp3');
         const somCoracao = new Audio('som_coracao.mp3');
@@ -163,36 +163,25 @@
         somCorrida.loop = true;
         const somBuraco = new Audio('som_buraco.mp3');
 
-        const musicaFase1 = new Audio('musica_fase1.mp3');
-        musicaFase1.loop = true;
-        musicaFase1.volume = 0.4;
-
-        const musicaFase2 = new Audio('musica_fase2.mp3');
-        musicaFase2.loop = true;
-        musicaFase2.volume = 0.4;
-
+        const musicaFase1 = new Audio('musica_fase1.mp3'); musicaFase1.loop = true; musicaFase1.volume = 0.4;
+        const musicaFase2 = new Audio('musica_fase2.mp3'); musicaFase2.loop = true; musicaFase2.volume = 0.4;
         let musicaAtual = null;
 
         function tocarEfeito(audioObj) {
-            try {
-                audioObj.currentTime = 0;
-                audioObj.play().catch(e => console.log("Áudio bloqueado:", e));
-            } catch (err) {}
+            try { audioObj.currentTime = 0; audioObj.play().catch(e => {}); } catch (err) {}
         }
-
         function alternarMusicaFundo(faseNum) {
             pararMusicaFundo();
             musicaAtual = (faseNum === 0) ? musicaFase1 : musicaFase2;
             musicaAtual.play().catch(e => {});
         }
-
         function pararMusicaFundo() {
             if (musicaFase1) { musicaFase1.pause(); musicaFase1.currentTime = 0; }
             if (musicaFase2) { musicaFase2.pause(); musicaFase2.currentTime = 0; }
             if (somCorrida) { somCorrida.pause(); somCorrida.currentTime = 0; }
         }
 
-        // --- ATIVOS VISUAIS ---
+        // --- IMAGENS ---
         const imgFundo = new Image(); imgFundo.src = "fundo_floresta.png";
         const imgArvore1 = new Image(); imgArvore1.src = "arvore_fundo.png";
         const imgArvore2 = new Image(); imgArvore2.src = "arvore_fundo_2.png";
@@ -226,7 +215,6 @@
         let tempoRestante = 60, timerInterval = null;
         let estadoJogo = 'MENU', faseAtual = 0, mensagemDerrota = "";
 
-        // Botão Pause centralizado perfeitamente na HUD adaptativa
         const btnPauseArea = { x: 890, y: 12, largura: 110, altura: 34 };
         const btnMenuArea = { x: 510, y: 432, largura: 280, altura: 56 };
 
@@ -307,6 +295,16 @@
             else if (estadoJogo === 'PAUSADO') { estadoJogo = 'JOGANDO'; alternarMusicaFundo(faseAtual); }
         }
 
+        function dispararAcaoEnter() {
+            if (estadoJogo === 'MENU') {
+                pontosTotais = 0; moedasTotais = 0; carregarFase(0);
+            } else if (estadoJogo === 'PAUSADO') {
+                estadoJogo = 'JOGANDO'; alternarMusicaFundo(faseAtual);
+            } else {
+                tratarAcaoMenu();
+            }
+        }
+
         window.addEventListener("keydown", (e) => {
             if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
             if (e.code === "KeyP") alternarPause();
@@ -317,8 +315,7 @@
                 if ((e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyW") && jogador.noChao) executarPulo();
             }
             if (e.code === "Enter") {
-                if (estadoJogo === 'MENU') { pontosTotais = 0; moedasTotais = 0; carregarFase(0); }
-                else tratarAcaoMenu();
+                dispararAcaoEnter();
             }
         });
 
@@ -346,10 +343,19 @@
         configurarBotaoToque("btnBaixo", "baixo");
         configurarBotaoToque("btnCima", "pulo");
 
+        // CONFIGURAÇÃO DO BOTÃO "A" PARA FUNCIONAR COMO ENTER QUANDO ESTIVER NO MENU/TELA FINAL
         const btnPulo = document.getElementById("btnPulo");
         if(btnPulo) {
-            btnPulo.addEventListener("touchstart", (e) => { e.preventDefault(); if(jogador.noChao && estadoJogo === 'JOGANDO') executarPulo(); }, {passive: false});
-            btnPulo.addEventListener("mousedown", () => { if(jogador.noChao && estadoJogo === 'JOGANDO') executarPulo(); });
+            const acaoBotaoA = (e) => {
+                e.preventDefault();
+                if (estadoJogo === 'JOGANDO') {
+                    if (jogador.noChao) executarPulo();
+                } else {
+                    dispararAcaoEnter();
+                }
+            };
+            btnPulo.addEventListener("touchstart", acaoBotaoA, {passive: false});
+            btnPulo.addEventListener("mousedown", acaoBotaoA);
         }
 
         function executarPulo() {
@@ -623,7 +629,7 @@
 
             ctx.restore();
 
-            // --- HUD ADAPTATIVA ---
+            // --- HUD ---
             ctx.fillStyle = "#0f172a"; ctx.font = "bold 15px Arial"; ctx.textAlign = "left";
             ctx.fillText(`Fase ${faseAtual + 1}`, 20, 30);
             let textoVidas = ""; for (let i = 0; i < MAX_VIDAS; i++) textoVidas += i < vidas ? "❤️ " : "🖤 ";
