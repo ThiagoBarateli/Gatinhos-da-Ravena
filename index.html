@@ -11,19 +11,26 @@
             -webkit-user-select: none;
             -webkit-touch-callout: none;
         }
-        html, body {
-            background-color: #000;
+        body {
+            background-color: #0f172a;
+            color: white;
+            text-align: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
             width: 100vw;
             height: 100vh;
             overflow: hidden;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            font-family: Arial, sans-serif;
+            overscroll-behavior: none;
         }
-        h1, .instrucoes {
+        h1 {
+            display: none; /* Oculta no mobile para focar no jogo */
+        }
+        .instrucoes {
             display: none;
         }
         #container-jogo {
@@ -33,17 +40,18 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: hidden;
         }
         canvas {
             background: #38bdf8;
             display: block;
             width: 100%;
             height: 100%;
-            object-fit: contain; /* Mantém a proporção exata sem cortar nada da tela */
+            object-fit: contain;
+            cursor: pointer;
+            touch-action: none;
         }
 
-        /* CONTROLES MOBILE FLUTUANTES */
+        /* CONTROLES MOBILE FLUTUANTES TRANSLÚCIDOS */
         .controles-mobile {
             position: absolute;
             top: 0;
@@ -57,21 +65,21 @@
         /* D-PAD ESQUERDO */
         .dpad-container {
             position: absolute;
-            bottom: 25px;
-            left: 25px;
-            width: 140px;
-            height: 140px;
+            bottom: 20px;
+            left: 20px;
+            width: 150px;
+            height: 150px;
             pointer-events: auto;
         }
         .btn-dpad {
             position: absolute;
-            width: 45px;
-            height: 45px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.4);
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.5);
             border-radius: 50%;
             color: white;
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             display: flex;
             justify-content: center;
@@ -85,10 +93,10 @@
             border-color: rgba(255, 255, 255, 0.9);
             transform: scale(0.92);
         }
-        .dpad-up    { top: 0; left: 47px; }
-        .dpad-down  { bottom: 0; left: 47px; }
-        .dpad-left  { top: 47px; left: 0; }
-        .dpad-right { top: 47px; right: 0; }
+        .dpad-up    { top: 0; left: 51px; }
+        .dpad-down  { bottom: 0; left: 51px; }
+        .dpad-left  { top: 51px; left: 0; }
+        .dpad-right { top: 51px; right: 0; }
 
         /* AÇÕES DIREITAS */
         .acoes-container {
@@ -96,18 +104,18 @@
             bottom: 25px;
             right: 25px;
             display: flex;
-            gap: 15px;
+            gap: 18px;
             align-items: flex-end;
             pointer-events: auto;
         }
         .btn-acao {
-            width: 58px;
-            height: 58px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.4);
+            width: 62px;
+            height: 62px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.5);
             border-radius: 50%;
             color: white;
-            font-size: 20px;
+            font-size: 22px;
             font-weight: bold;
             display: flex;
             justify-content: center;
@@ -122,22 +130,24 @@
             transform: scale(0.92);
         }
         .btn-atirar {
-            width: 48px;
-            height: 48px;
-            font-size: 16px;
-            margin-bottom: 12px;
+            width: 50px;
+            height: 50px;
+            font-size: 18px;
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
-    <div id="container-jogo">
-        <canvas id="canvasJogo" width="1024" height="576"></canvas>
 
+    <div id="container-jogo">
+        <canvas id="telaJogo" width="1100" height="550"></canvas>
+
+        <!-- CONTROLES TRANSPARENTES SOBREPOSTOS -->
         <div class="controles-mobile">
             <div class="dpad-container">
                 <div class="btn-dpad dpad-up" id="btnCima">▲</div>
-                <div class="btn-dpad dpad-left" id="btnEsquerda">◄</div>
-                <div class="btn-dpad dpad-right" id="btnDireita">►</div>
+                <div class="btn-dpad dpad-left" id="btnEsq">◄</div>
+                <div class="btn-dpad dpad-right" id="btnDir">►</div>
                 <div class="btn-dpad dpad-down" id="btnBaixo">▼</div>
             </div>
 
@@ -149,43 +159,47 @@
     </div>
 
     <script>
-        const canvas = document.getElementById("canvasJogo");
+        const canvas = document.getElementById("telaJogo");
         const ctx = canvas.getContext("2d");
 
-        // --- SISTEMA DE ÁUDIO SEM DELAY (CLONAGEM INSTANTÂNEA) ---
-        function criarAudio(src) {
-            const audio = new Audio(src);
-            audio.load();
-            return audio;
-        }
-
-        const somPulo = 'som_pulo.mp3';
-        const somGato = 'som_gato.mp3';
-        const somCoracao = 'som_coracao.mp3';
-        const somInimigo = 'som_inimigo.mp3';
-        const somDano = 'som_dano.mp3';
-        const somVitoria = 'som_vitoria.mp3';
-        const somBuraco = 'som_buraco.mp3';
-
+        // --- CARREGAMENTO DE ÁUDIOS REAIS ---
+        const somPulo = new Audio('som_pulo.mp3');
+        const somGato = new Audio('som_gato.mp3');
+        const somCoracao = new Audio('som_coracao.mp3');
+        const somInimigo = new Audio('som_inimigo.mp3');
+        const somDano = new Audio('som_dano.mp3');
+        const somVitoria = new Audio('som_vitoria.mp3');
         const somCorrida = new Audio('som_corrida.mp3');
         somCorrida.loop = true;
+        const somBuraco = new Audio('som_buraco.mp3');
 
-        const musicaFase1 = new Audio('musica_fase1.mp3'); musicaFase1.loop = true; musicaFase1.volume = 0.4;
-        const musicaFase2 = new Audio('musica_fase2.mp3'); musicaFase2.loop = true; musicaFase2.volume = 0.4;
+        const musicaFase1 = new Audio('musica_fase1.mp3');
+        musicaFase1.loop = true;
+        musicaFase1.volume = 0.4;
+
+        const musicaFase2 = new Audio('musica_fase2.mp3');
+        musicaFase2.loop = true;
+        musicaFase2.volume = 0.4;
+
         let musicaAtual = null;
 
-        function tocarEfeito(src) {
+        function tocarEfeito(audioObj) {
             try {
-                const s = new Audio(src);
-                s.currentTime = 0;
-                s.play().catch(e => {});
-            } catch (err) {}
+                audioObj.currentTime = 0;
+                audioObj.play().catch(e => console.log("Áudio bloqueado:", e));
+            } catch (err) {
+                console.log("Erro ao tocar som:", err);
+            }
         }
 
         function alternarMusicaFundo(faseNum) {
             pararMusicaFundo();
-            musicaAtual = (faseNum === 0) ? musicaFase1 : musicaFase2;
-            musicaAtual.play().catch(e => {});
+            if (faseNum === 0) {
+                musicaAtual = musicaFase1;
+            } else {
+                musicaAtual = musicaFase2;
+            }
+            musicaAtual.play().catch(e => console.log("Música aguardando interação:", e));
         }
 
         function pararMusicaFundo() {
@@ -194,46 +208,98 @@
             if (somCorrida) { somCorrida.pause(); somCorrida.currentTime = 0; }
         }
 
-        // --- IMAGENS ---
-        const imgFundo = new Image(); imgFundo.src = "fundo_floresta.png";
-        const imgArvore1 = new Image(); imgArvore1.src = "arvore_fundo.png";
-        const imgArvore2 = new Image(); imgArvore2.src = "arvore_fundo_2.png";
-        const imgBloco = new Image(); imgBloco.src = "bloco_terra.png";
-        const imgGatinho = new Image(); imgGatinho.src = "gatinho.png";
-        const imgCastelo = new Image(); imgCastelo.src = "castelo.png";
-        const imgInimigoDiabinho = new Image(); imgInimigoDiabinho.src = "inimigo_diabinho.png";
-        const imagemRavena = new Image(); imagemRavena.src = "ravena_sprite.png";
-        const imagemCorrida = new Image(); imagemCorrida.src = "ravena_corrida.png";
-        const imagemAcoes = new Image(); imagemAcoes.src = "ravena_acoes.png";
-        const imgRavenaInicial = new Image(); imgRavenaInicial.src = "ravena_inicial.png";
-        const imgRavenaVitoria = new Image(); imgRavenaVitoria.src = "ravena_vitoria.png";
-        const imgRavenaCoracao = new Image(); imgRavenaCoracao.src = "ravena_coracao.png";
-        const imgRavenaDerrota = new Image(); imgRavenaDerrota.src = "ravena_derrota.png";
+        // --- CARREGAMENTO DE ATIVOS VISUAIS ---
+        const imgFundo = new Image();
+        imgFundo.src = "fundo_floresta.png"; 
+
+        const imgArvore1 = new Image();
+        imgArvore1.src = "arvore_fundo.png"; 
+
+        const imgArvore2 = new Image();
+        imgArvore2.src = "arvore_fundo_2.png"; 
+
+        const imgBloco = new Image();
+        imgBloco.src = "bloco_terra.png"; 
+
+        const imgGatinho = new Image();
+        imgGatinho.src = "gatinho.png"; 
+
+        const imgCastelo = new Image();
+        imgCastelo.src = "castelo.png"; 
+
+        const imgInimigoDiabinho = new Image();
+        imgInimigoDiabinho.src = "inimigo_diabinho.png";
+
+        const imagemRavena = new Image();
+        imagemRavena.src = "ravena_sprite.png";
+
+        const imagemCorrida = new Image();
+        imagemCorrida.src = "ravena_corrida.png";
+
+        const imagemAcoes = new Image();
+        imagemAcoes.src = "ravena_acoes.png";
+
+        // Imagens do Menu, Vitórias e Derrota
+        const imgRavenaInicial = new Image();
+        imgRavenaInicial.src = "ravena_inicial.png";
+
+        const imgRavenaVitoria = new Image();
+        imgRavenaVitoria.src = "ravena_vitoria.png";
+
+        const imgRavenaCoracao = new Image();
+        imgRavenaCoracao.src = "ravena_coracao.png";
+
+        const imgRavenaDerrota = new Image();
+        imgRavenaDerrota.src = "ravena_derrota.png";
 
         const teclas = { esquerda: false, direita: false, pulo: false, baixo: false };
 
         const jogador = {
-            x: 50, y: 300, largura: 40, altura: 80,
-            velocidadeX: 0, velocidadeY: 0, velocidadeMove: 5.2,
-            forcaPulo: -12.8, gravidade: 0.52, noChao: false,
-            olhandoDireita: true, passoAnimacao: 0, invulneravelTempo: 0, tempoAterrissando: 0
+            x: 50,
+            y: 300,
+            largura: 40,
+            altura: 80,
+            velocidadeX: 0,
+            velocidadeY: 0,
+            velocidadeMove: 5.2,
+            forcaPulo: -12.8,
+            gravidade: 0.52,
+            noChao: false,
+            olhandoDireita: true,
+            passoAnimacao: 0,
+            invulneravelTempo: 0,
+            tempoAterrissando: 0
         };
 
         let particulas = [];
         let vidas = 3;
         const MAX_VIDAS = 3;
-        let pontosTotais = 0, moedasTotais = 0, estrelasFaseAtual = 0;
-        let pontosFaseAtual = 0, moedasFaseAtual = 0, cameraX = 0;
-        let gatinhosResgatadosFase = 0, gatinhosTotaisFase = 0;
-        let tempoRestante = 60, timerInterval = null;
-        let estadoJogo = 'MENU', faseAtual = 0, mensagemDerrota = "";
 
-        const btnPauseArea = { x: 890, y: 12, largura: 110, altura: 34 };
-        const btnMenuArea = { x: 510, y: 432, largura: 280, altura: 56 };
+        let pontosTotais = 0;
+        let moedasTotais = 0;
+        let estrelasFaseAtual = 0;
+        let pontosFaseAtual = 0;
+        let moedasFaseAtual = 0;
+
+        let cameraX = 0;
+        let gatinhosResgatadosFase = 0;
+        let gatinhosTotaisFase = 0;
+        let tempoRestante = 60;
+        let timerInterval = null;
+
+        let estadoJogo = 'MENU';
+        let faseAtual = 0;
+        let mensagemDerrota = "";
+
+        const btnPauseArea = { x: 960, y: 12, largura: 110, altura: 34 };
+        const btnMenuArea = { x: 550 - 140, y: 460 - 28, largura: 280, altura: 56 };
 
         const fases = [
             {
-                nome: "Floresta Alegre", tipoCenario: "FLORESTA_CLARA", tempo: 80, linhaDeChegada: 2400,
+                nome: "Floresta Alegre",
+                tipoCenario: "FLORESTA_CLARA",
+                tempo: 80,
+                linhaDeChegada: 2400, 
                 plataformas: [
                     { x: 0, y: 500, largura: 750, altura: 50 },
                     { x: 450, y: 370, largura: 150, altura: 30 },
@@ -242,14 +308,24 @@
                     { x: 1320, y: 260, largura: 140, altura: 30 },
                     { x: 1580, y: 500, largura: 1950, altura: 50 }
                 ],
-                espinhos: [{ x: 550, y: 480, largura: 80 }, { x: 1100, y: 480, largura: 100 }, { x: 1750, y: 480, largura: 90 }],
+                espinhos: [
+                    { x: 550, y: 480, largura: 80 },
+                    { x: 1100, y: 480, largura: 100 },
+                    { x: 1750, y: 480, largura: 90 }
+                ],
                 gatinhos: [
-                    { x: 250, y: 485, pegou: false, offsetY: 0 }, { x: 500, y: 355, pegou: false, offsetY: 0 },
-                    { x: 900, y: 485, pegou: false, offsetY: 0 }, { x: 1120, y: 355, pegou: false, offsetY: 0 },
-                    { x: 1380, y: 245, pegou: false, offsetY: 0 }, { x: 1700, y: 485, pegou: false, offsetY: 0 },
+                    { x: 250, y: 485, pegou: false, offsetY: 0 },
+                    { x: 500, y: 355, pegou: false, offsetY: 0 },
+                    { x: 900, y: 485, pegou: false, offsetY: 0 },
+                    { x: 1120, y: 355, pegou: false, offsetY: 0 },
+                    { x: 1380, y: 245, pegou: false, offsetY: 0 },
+                    { x: 1700, y: 485, pegou: false, offsetY: 0 },
                     { x: 1950, y: 485, pegou: false, offsetY: 0 }
                 ],
-                coracoesExtras: [{ x: 1380, y: 390, pegou: false, offsetY: 0 }, { x: 1850, y: 390, pegou: false, offsetY: 0 }],
+                coracoesExtras: [
+                    { x: 1380, y: 390, pegou: false, offsetY: 0 },
+                    { x: 1850, y: 390, pegou: false, offsetY: 0 }
+                ],
                 inimigos: [
                     { x: 380, y: 455, largura: 45, altura: 45, minX: 100, maxX: 700, velocidade: 2.2, direcao: 1, vivo: true, passo: 0 },
                     { x: 1180, y: 455, largura: 45, altura: 45, minX: 900, maxX: 1450, velocidade: 2.5, direcao: 1, vivo: true, passo: 0 },
@@ -257,23 +333,43 @@
                 ]
             },
             {
-                nome: "Floresta Densa", tipoCenario: "FLORESTA_DENSA", tempo: 75, linhaDeChegada: 2900,
+                nome: "Floresta Densa",
+                tipoCenario: "FLORESTA_DENSA",
+                tempo: 75,
+                linhaDeChegada: 2900,
                 plataformas: [
-                    { x: 0, y: 500, largura: 500, altura: 50 }, { x: 380, y: 370, largura: 120, altura: 30 },
-                    { x: 570, y: 290, largura: 120, altura: 30 }, { x: 780, y: 210, largura: 130, altura: 30 },
-                    { x: 980, y: 500, largura: 500, altura: 50 }, { x: 1180, y: 370, largura: 140, altura: 30 },
-                    { x: 1560, y: 500, largura: 2550, altura: 50 }, { x: 1850, y: 370, largura: 160, altura: 30 },
+                    { x: 0, y: 500, largura: 500, altura: 50 },
+                    { x: 380, y: 370, largura: 120, altura: 30 },
+                    { x: 570, y: 290, largura: 120, altura: 30 },
+                    { x: 780, y: 210, largura: 130, altura: 30 },
+                    { x: 980, y: 500, largura: 500, altura: 50 },
+                    { x: 1180, y: 370, largura: 140, altura: 30 },
+                    { x: 1560, y: 500, largura: 2550, altura: 50 },
+                    { x: 1850, y: 370, largura: 160, altura: 30 },
                     { x: 2200, y: 280, largura: 140, altura: 30 }
                 ],
-                espinhos: [{ x: 300, y: 480, largura: 90 }, { x: 1100, y: 480, largura: 120 }, { x: 1700, y: 480, largura: 100 }, { x: 2350, y: 480, largura: 110 }],
+                espinhos: [
+                    { x: 300, y: 480, largura: 90 },
+                    { x: 1100, y: 480, largura: 120 },
+                    { x: 1700, y: 480, largura: 100 },
+                    { x: 2350, y: 480, largura: 110 }
+                ],
                 gatinhos: [
-                    { x: 200, y: 485, pegou: false, offsetY: 0 }, { x: 420, y: 355, pegou: false, offsetY: 0 },
-                    { x: 610, y: 275, pegou: false, offsetY: 0 }, { x: 820, y: 195, pegou: false, offsetY: 0 },
-                    { x: 1050, y: 485, pegou: false, offsetY: 0 }, { x: 1230, y: 325, pegou: false, offsetY: 0 },
-                    { x: 1950, y: 485, pegou: false, offsetY: 0 }, { x: 2250, y: 265, pegou: false, offsetY: 0 },
+                    { x: 200, y: 485, pegou: false, offsetY: 0 },
+                    { x: 420, y: 355, pegou: false, offsetY: 0 },
+                    { x: 610, y: 275, pegou: false, offsetY: 0 },
+                    { x: 820, y: 195, pegou: false, offsetY: 0 },
+                    { x: 1050, y: 485, pegou: false, offsetY: 0 },
+                    { x: 1230, y: 325, pegou: false, offsetY: 0 },
+                    { x: 1950, y: 485, pegou: false, offsetY: 0 },
+                    { x: 2250, y: 265, pegou: false, offsetY: 0 },
                     { x: 2550, y: 485, pegou: false, offsetY: 0 }
                 ],
-                coracoesExtras: [{ x: 610, y: 210, pegou: false, offsetY: 0 }, { x: 1910, y: 260, pegou: false, offsetY: 0 }, { x: 2300, y: 390, pegou: false, offsetY: 0 }],
+                coracoesExtras: [
+                    { x: 610, y: 210, pegou: false, offsetY: 0 },
+                    { x: 1910, y: 260, pegou: false, offsetY: 0 },
+                    { x: 2300, y: 390, pegou: false, offsetY: 0 }
+                ],
                 inimigos: [
                     { x: 200, y: 455, largura: 45, altura: 45, minX: 50, maxX: 450, velocidade: 2.2, direcao: 1, vivo: true, passo: 0 },
                     { x: 1150, y: 455, largura: 45, altura: 45, minX: 1000, maxX: 1400, velocidade: 3.0, direcao: 1, vivo: true, passo: 0 },
@@ -285,34 +381,68 @@
 
         function carregarFase(numeroFase) {
             const fase = fases[numeroFase];
-            jogador.x = 50; jogador.y = 250; jogador.velocidadeX = 0; jogador.velocidadeY = 0;
-            jogador.invulneravelTempo = 0; jogador.tempoAterrissando = 0; cameraX = 0; vidas = MAX_VIDAS; particulas = [];
-            gatinhosResgatadosFase = 0; gatinhosTotaisFase = fase.gatinhos.length;
-            pontosFaseAtual = 0; moedasFaseAtual = 0;
+            jogador.x = 50;
+            jogador.y = 250;
+            jogador.velocidadeX = 0;
+            jogador.velocidadeY = 0;
+            jogador.invulneravelTempo = 0;
+            jogador.tempoAterrissando = 0;
+            cameraX = 0;
+            vidas = MAX_VIDAS;
+            particulas = [];
+
+            gatinhosResgatadosFase = 0;
+            gatinhosTotaisFase = fase.gatinhos.length;
+            pontosFaseAtual = 0;
+            moedasFaseAtual = 0;
+
             fase.gatinhos.forEach(g => g.pegou = false);
             fase.coracoesExtras.forEach(c => c.pegou = false);
-            fase.inimigos.forEach(i => { i.x = i.minX + 50; i.direcao = 1; i.vivo = true; i.passo = 0; });
-            tempoRestante = fase.tempo; estadoJogo = 'JOGANDO';
+
+            fase.inimigos.forEach(inimigo => {
+                inimigo.x = inimigo.minX + 50;
+                inimigo.direcao = 1;
+                inimigo.vivo = true;
+                inimigo.passo = 0;
+            });
+
+            tempoRestante = fase.tempo;
+            estadoJogo = 'JOGANDO';
+
             alternarMusicaFundo(numeroFase);
+
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
                 if (estadoJogo === 'JOGANDO') {
                     tempoRestante--;
-                    if (tempoRestante <= 0) { pararMusicaFundo(); tocarEfeito(somDano); estadoJogo = 'GAME_OVER'; mensagemDerrota = "⏰ O Tempo Acabou!"; }
+                    if (tempoRestante <= 0) {
+                        pararMusicaFundo();
+                        tocarEfeito(somDano);
+                        estadoJogo = 'GAME_OVER';
+                        mensagemDerrota = "⏰ O Tempo Acabou! Seja mais rápida!";
+                    }
                 }
             }, 1000);
         }
 
         function alternarPause() {
-            if (estadoJogo === 'JOGANDO') { estadoJogo = 'PAUSADO'; pararMusicaFundo(); }
-            else if (estadoJogo === 'PAUSADO') { estadoJogo = 'JOGANDO'; alternarMusicaFundo(faseAtual); }
+            if (estadoJogo === 'JOGANDO') {
+                estadoJogo = 'PAUSADO';
+                pararMusicaFundo();
+            } else if (estadoJogo === 'PAUSADO') {
+                estadoJogo = 'JOGANDO';
+                alternarMusicaFundo(faseAtual);
+            }
         }
 
-        function dispararAcaoEnter() {
+        function acaoPrincipalEnter() {
             if (estadoJogo === 'MENU') {
-                pontosTotais = 0; moedasTotais = 0; carregarFase(0);
+                pontosTotais = 0;
+                moedasTotais = 0;
+                carregarFase(0);
             } else if (estadoJogo === 'PAUSADO') {
-                estadoJogo = 'JOGANDO'; alternarMusicaFundo(faseAtual);
+                estadoJogo = 'JOGANDO';
+                alternarMusicaFundo(faseAtual);
             } else {
                 tratarAcaoMenu();
             }
@@ -321,14 +451,17 @@
         window.addEventListener("keydown", (e) => {
             if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
             if (e.code === "KeyP") alternarPause();
+
             if (estadoJogo === 'JOGANDO') {
                 if (e.code === "ArrowLeft" || e.code === "KeyA") teclas.esquerda = true;
                 if (e.code === "ArrowRight" || e.code === "KeyD") teclas.direita = true;
                 if (e.code === "ArrowDown" || e.code === "KeyS") teclas.baixo = true;
-                if ((e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyW") && jogador.noChao) executarPulo();
+                if ((e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyW") && jogador.noChao) {
+                    executarPulo();
+                }
             }
             if (e.code === "Enter") {
-                dispararAcaoEnter();
+                acaoPrincipalEnter();
             }
         });
 
@@ -337,25 +470,25 @@
             if (e.code === "ArrowRight" || e.code === "KeyD") teclas.direita = false;
             if (e.code === "ArrowDown" || e.code === "KeyS") teclas.baixo = false;
         });
+        window.addEventListener("blur", () => { teclas.esquerda = false; teclas.direita = false; teclas.baixo = false; });
 
-        const configurarBotaoToque = (id, teclaNome) => {
+        const configurarBotao = (id, teclaNome) => {
             const btn = document.getElementById(id);
-            if (!btn) return;
-            const ativar = (e) => { e.preventDefault(); if(estadoJogo==='JOGANDO') { teclas[teclaNome] = true; if(teclaNome==='pulo' && jogador.noChao) executarPulo(); } };
-            const desativar = (e) => { e.preventDefault(); teclas[teclaNome] = false; };
-            btn.addEventListener("touchstart", ativar, {passive: false});
-            btn.addEventListener("touchend", desativar, {passive: false});
-            btn.addEventListener("touchcancel", desativar, {passive: false});
+            if(!btn) return;
+            btn.addEventListener("touchstart", (e) => { e.preventDefault(); if(estadoJogo==='JOGANDO') { teclas[teclaNome] = true; if(teclaNome==='pulo' && jogador.noChao) executarPulo(); } });
+            btn.addEventListener("touchend", (e) => { e.preventDefault(); teclas[teclaNome] = false; });
             btn.addEventListener("mousedown", () => { if(estadoJogo==='JOGANDO') { teclas[teclaNome] = true; if(teclaNome==='pulo' && jogador.noChao) executarPulo(); } });
             btn.addEventListener("mouseup", () => { teclas[teclaNome] = false; });
+            btn.addEventListener("touchcancel", () => { teclas[teclaNome] = false; });
             btn.addEventListener("mouseleave", () => { teclas[teclaNome] = false; });
         };
 
-        configurarBotaoToque("btnEsquerda", "esquerda");
-        configurarBotaoToque("btnDireita", "direita");
-        configurarBotaoToque("btnBaixo", "baixo");
-        configurarBotaoToque("btnCima", "pulo");
+        configurarBotao("btnEsq", "esquerda");
+        configurarBotao("btnDir", "direita");
+        configurarBotao("btnBaixo", "baixo");
+        configurarBotao("btnCima", "pulo");
 
+        // CONFIGURAÇÃO DO BOTÃO "A" (Pulo + Funciona como Enter nos menus)
         const btnPulo = document.getElementById("btnPulo");
         if(btnPulo) {
             const acaoBotaoA = (e) => {
@@ -363,7 +496,7 @@
                 if (estadoJogo === 'JOGANDO') {
                     if (jogador.noChao) executarPulo();
                 } else {
-                    dispararAcaoEnter();
+                    acaoPrincipalEnter();
                 }
             };
             btnPulo.addEventListener("touchstart", acaoBotaoA, {passive: false});
@@ -386,7 +519,9 @@
             if (estadoJogo === 'MENU') {
                 if (mouseX >= btnMenuArea.x && mouseX <= btnMenuArea.x + btnMenuArea.largura &&
                     mouseY >= btnMenuArea.y && mouseY <= btnMenuArea.y + btnMenuArea.altura) {
-                    pontosTotais = 0; moedasTotais = 0; carregarFase(0);
+                    pontosTotais = 0;
+                    moedasTotais = 0;
+                    carregarFase(0);
                 }
                 return;
             }
@@ -398,9 +533,12 @@
             }
 
             if (estadoJogo === 'PAUSADO') {
-                let btnX = canvas.width / 2 - 140; let btnY = 300 - 28;
-                if (mouseX >= btnX && mouseX <= btnX + 280 && mouseY >= btnY && mouseY <= btnY + 56) {
-                    estadoJogo = 'JOGANDO'; alternarMusicaFundo(faseAtual); return;
+                let btnX = canvas.width / 2 - 130;
+                let btnY = 300 - 28;
+                if (mouseX >= btnX && mouseX <= btnX + 260 && mouseY >= btnY && mouseY <= btnY + 52) {
+                    estadoJogo = 'JOGANDO';
+                    alternarMusicaFundo(faseAtual);
+                    return;
                 }
             }
 
@@ -409,56 +547,110 @@
 
         function tratarAcaoMenu() {
             if (estadoJogo === 'FASE_CONCLUIDA') {
-                if (faseAtual + 1 < fases.length) { faseAtual++; carregarFase(faseAtual); }
-                else { faseAtual = 0; carregarFase(faseAtual); }
-            } else if (estadoJogo === 'GAME_OVER') { carregarFase(faseAtual); }
+                if (faseAtual + 1 < fases.length) {
+                    faseAtual++;
+                    carregarFase(faseAtual);
+                } else {
+                    faseAtual = 0;
+                    carregarFase(faseAtual);
+                }
+            } else if (estadoJogo === 'GAME_OVER') {
+                carregarFase(faseAtual);
+            }
         }
 
         function criarPoeiraPouso(x, y) {
             for (let i = 0; i < 6; i++) {
-                particulas.push({ x: x, y: y, vx: (Math.random() - 0.5) * 4, vy: -Math.random() * 1.5, vida: 20, cor: '#ffffff', tamanho: Math.random() * 4 + 2 });
+                particulas.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: -Math.random() * 1.5,
+                    vida: 20,
+                    cor: '#ffffff',
+                    tamanho: Math.random() * 4 + 2
+                });
             }
         }
 
         function perderVida(motivo) {
             if (jogador.invulneravelTempo > 0) return;
-            vidas--; jogador.invulneravelTempo = 60;
-            if (motivo === 'espinho') tocarEfeito(somDano);
-            else if (motivo === 'inimigo') tocarEfeito(somInimigo);
+
+            vidas--;
+            jogador.invulneravelTempo = 60;
+
+            if (motivo === 'espinho') {
+                tocarEfeito(somDano);
+            } else if (motivo === 'inimigo') {
+                tocarEfeito(somInimigo);
+            }
 
             if (vidas <= 0) {
-                pararMusicaFundo(); estadoJogo = 'GAME_OVER';
-                mensagemDerrota = (motivo === 'inimigo') ? "😈 Um diabinho pegou a Ravena!" : "🌵 Cuidado com os espinhos!";
-            } else { jogador.velocidadeY = -6; }
+                pararMusicaFundo();
+                estadoJogo = 'GAME_OVER';
+                if (motivo === 'inimigo') mensagemDerrota = "😈 Um diabinho pegou a Ravena!";
+                else if (motivo === 'espinho') mensagemDerrota = "🌵 Cuidado com os espinhos afiados!";
+                else if (motivo === 'buraco') mensagemDerrota = "🕳️ Cuidado para não cair no buraco!";
+            } else {
+                jogador.velocidadeY = -6;
+            }
         }
 
         function concluirFase() {
-            pararMusicaFundo(); tocarEfeito(somVitoria);
+            pararMusicaFundo();
+            tocarEfeito(somVitoria);
+
             let bonusTempo = tempoRestante * 10;
             let bonusPerfeicao = (gatinhosResgatadosFase === gatinhosTotaisFase) ? 500 : 0;
+            
             pontosFaseAtual += bonusTempo + bonusPerfeicao;
-            pontosTotais += pontosFaseAtual; moedasTotais += moedasFaseAtual;
+            pontosTotais += pontosFaseAtual;
+            moedasTotais += moedasFaseAtual;
+
             estrelasFaseAtual = 1;
             if (gatinhosResgatadosFase === gatinhosTotaisFase) estrelasFaseAtual++;
             if (vidas === MAX_VIDAS) estrelasFaseAtual++;
+
             estadoJogo = 'FASE_CONCLUIDA';
         }
 
         function atualizarLogica() {
             if (estadoJogo === 'JOGANDO') {
                 const fase = fases[faseAtual];
+
                 if (jogador.invulneravelTempo > 0) jogador.invulneravelTempo--;
                 if (jogador.tempoAterrissando > 0) jogador.tempoAterrissando--;
 
                 let estaMovendo = false;
                 if (!teclas.baixo) {
-                    if (teclas.esquerda) { jogador.velocidadeX = -jogador.velocidadeMove; jogador.olhandoDireita = false; jogador.passoAnimacao += 0.25; estaMovendo = true; }
-                    else if (teclas.direita) { jogador.velocidadeX = jogador.velocidadeMove; jogador.olhandoDireita = true; jogador.passoAnimacao += 0.25; estaMovendo = true; }
-                    else { jogador.velocidadeX = 0; jogador.passoAnimacao = 0; }
-                } else { jogador.velocidadeX = 0; jogador.passoAnimacao = 0; }
+                    if (teclas.esquerda) {
+                        jogador.velocidadeX = -jogador.velocidadeMove;
+                        jogador.olhandoDireita = false;
+                        jogador.passoAnimacao += 0.25;
+                        estaMovendo = true;
+                    } else if (teclas.direita) {
+                        jogador.velocidadeX = jogador.velocidadeMove;
+                        jogador.olhandoDireita = true;
+                        jogador.passoAnimacao += 0.25;
+                        estaMovendo = true;
+                    } else {
+                        jogador.velocidadeX = 0;
+                        jogador.passoAnimacao = 0;
+                    }
+                } else {
+                    jogador.velocidadeX = 0;
+                    jogador.passoAnimacao = 0;
+                }
 
-                if (estaMovendo && jogador.noChao && !teclas.baixo) { if (somCorrida.paused) somCorrida.play().catch(e => {}); }
-                else { if (!somCorrida.paused) somCorrida.pause(); }
+                if (estaMovendo && jogador.noChao && !teclas.baixo) {
+                    if (somCorrida.paused) {
+                        somCorrida.play().catch(e => {});
+                    }
+                } else {
+                    if (!somCorrida.paused) {
+                        somCorrida.pause();
+                    }
+                }
 
                 jogador.x += jogador.velocidadeX;
                 if (jogador.x < 0) jogador.x = 0;
@@ -483,36 +675,65 @@
                     if (!(jogador.x + jogador.largura > plat.x && jogador.x < plat.x + plat.largura)) continue;
                     const pesAntes = yAnterior + jogador.altura;
                     const pesAgora = jogador.y + jogador.altura;
+
                     if (jogador.velocidadeY >= 0 && pesAntes <= plat.y + 1 && pesAgora >= plat.y) {
                         jogador.y = plat.y - jogador.altura;
                         jogador.velocidadeY = 0;
                         jogador.noChao = true;
-                        if (!estavaNoChao) { criarPoeiraPouso(jogador.x + jogador.largura / 2, plat.y); jogador.tempoAterrissando = 4; }
+                        if (!estavaNoChao) {
+                            criarPoeiraPouso(jogador.x + jogador.largura / 2, plat.y);
+                            jogador.tempoAterrissando = 4;
+                        }
                         continue;
                     }
-                    if (plat.altura >= 40 && jogador.velocidadeY < 0 && yAnterior >= plat.y + plat.altura - 1 && jogador.y < plat.y + plat.altura) {
-                        jogador.y = plat.y + plat.altura; jogador.velocidadeY = 0;
+                    if (plat.altura >= 40 && jogador.velocidadeY < 0 &&
+                        yAnterior >= plat.y + plat.altura - 1 && jogador.y < plat.y + plat.altura) {
+                        jogador.y = plat.y + plat.altura;
+                        jogador.velocidadeY = 0;
                     }
                 }
 
-                if (jogador.y > canvas.height + 50) { pararMusicaFundo(); tocarEfeito(somBuraco); estadoJogo = 'GAME_OVER'; mensagemDerrota = "🕳️ Você caiu no buraco!"; }
+                if (jogador.y > canvas.height + 50) {
+                    pararMusicaFundo();
+                    tocarEfeito(somBuraco);
+                    estadoJogo = 'GAME_OVER';
+                    mensagemDerrota = "🕳️ Você caiu no buraco sem fundo!";
+                }
 
                 for (let esp of fase.espinhos) {
-                    if (jogador.x + jogador.largura > esp.x && jogador.x < esp.x + esp.largura && jogador.y + jogador.altura >= esp.y + 10) perderVida('espinho');
+                    if (
+                        jogador.x + jogador.largura > esp.x &&
+                        jogador.x < esp.x + esp.largura &&
+                        jogador.y + jogador.altura >= esp.y + 10
+                    ) {
+                        perderVida('espinho');
+                    }
                 }
 
                 for (let inimigo of fase.inimigos) {
                     if (inimigo.vivo) {
                         inimigo.x += inimigo.velocidade * inimigo.direcao;
                         inimigo.passo += 0.2;
-                        if (inimigo.x > inimigo.maxX || inimigo.x < inimigo.minX) inimigo.direcao *= -1;
-                        if (jogador.x < inimigo.x + inimigo.largura && jogador.x + jogador.largura > inimigo.x &&
-                            jogador.y < inimigo.y + inimigo.altura && jogador.y + jogador.altura > inimigo.y) {
+                        if (inimigo.x > inimigo.maxX || inimigo.x < inimigo.minX) {
+                            inimigo.direcao *= -1;
+                        }
+
+                        if (
+                            jogador.x < inimigo.x + inimigo.largura &&
+                            jogador.x + jogador.largura > inimigo.x &&
+                            jogador.y < inimigo.y + inimigo.altura &&
+                            jogador.y + jogador.altura > inimigo.y
+                        ) {
                             if (jogador.velocidadeY > 0 && jogador.y + jogador.altura <= inimigo.y + 20) {
-                                inimigo.vivo = false; jogador.velocidadeY = jogador.forcaPulo * 0.7;
-                                pontosFaseAtual += 150; pontosTotais += 150; tocarEfeito(somInimigo);
+                                inimigo.vivo = false;
+                                jogador.velocidadeY = jogador.forcaPulo * 0.7;
+                                pontosFaseAtual += 150;
+                                pontosTotais += 150;
+                                tocarEfeito(somInimigo);
                                 criarPoeiraPouso(inimigo.x + inimigo.largura / 2, inimigo.y);
-                            } else { perderVida('inimigo'); }
+                            } else {
+                                perderVida('inimigo');
+                            }
                         }
                     }
                 }
@@ -520,23 +741,50 @@
                 let tempoAnim = Date.now() * 0.004;
                 fase.gatinhos.forEach((g, index) => {
                     g.offsetY = Math.sin(tempoAnim + index) * 3;
-                    if (!g.pegou && Math.hypot((jogador.x + jogador.largura / 2) - g.x, (jogador.y + jogador.altura / 2) - (g.y + g.offsetY)) < 32) {
-                        g.pegou = true; gatinhosResgatadosFase++; pontosFaseAtual += 100; moedasFaseAtual += 50; pontosTotais += 100; moedasTotais += 50; tocarEfeito(somGato);
+                    if (!g.pegou) {
+                        let centroX = jogador.x + jogador.largura / 2;
+                        let centroY = jogador.y + jogador.altura / 2;
+                        let dist = Math.hypot(centroX - g.x, centroY - (g.y + g.offsetY));
+                        if (dist < 32) {
+                            g.pegou = true;
+                            gatinhosResgatadosFase++;
+                            pontosFaseAtual += 100;
+                            moedasFaseAtual += 50;
+                            pontosTotais += 100;
+                            moedasTotais += 50;
+                            tocarEfeito(somGato);
+                        }
                     }
                 });
 
                 fase.coracoesExtras.forEach((c, index) => {
                     c.offsetY = Math.cos(tempoAnim + index) * 3;
-                    if (!c.pegou && Math.hypot((jogador.x + jogador.largura / 2) - c.x, (jogador.y + jogador.altura / 2) - (c.y + c.offsetY)) < 32) {
-                        c.pegou = true; if (vidas < MAX_VIDAS) vidas++; moedasFaseAtual += 20; moedasTotais += 20; tocarEfeito(somCoracao);
+                    if (!c.pegou) {
+                        let centroX = jogador.x + jogador.largura / 2;
+                        let centroY = jogador.y + jogador.altura / 2;
+                        let distCoracao = Math.hypot(centroX - c.x, centroY - (c.y + c.offsetY));
+                        if (distCoracao < 32) {
+                            c.pegou = true;
+                            if (vidas < MAX_VIDAS) vidas++;
+                            moedasFaseAtual += 20;
+                            moedasTotais += 20;
+                            tocarEfeito(somCoracao);
+                        }
                     }
                 });
 
                 for (let i = particulas.length - 1; i >= 0; i--) {
-                    let p = particulas[i]; p.x += p.vx; p.y += p.vy; p.vida--; if (p.vida <= 0) particulas.splice(i, 1);
+                    let p = particulas[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vida--;
+                    if (p.vida <= 0) particulas.splice(i, 1);
                 }
 
-                if (jogador.x >= fase.linhaDeChegada + 120) concluirFase();
+                let xCentroPortaCastelo = fase.linhaDeChegada + 120;
+                if (jogador.x >= xCentroPortaCastelo) {
+                    concluirFase();
+                }
 
                 let alvoCameraX = jogador.x - canvas.width / 3;
                 if (alvoCameraX < 0) alvoCameraX = 0;
@@ -545,167 +793,383 @@
             }
         }
 
+        // --- RENDERIZAÇÃO COMPLETA (EXATAMENTE COMO ESTAVA) ---
+
         function desenhar() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (estadoJogo === 'MENU') { desenharTelaInicial(); return; }
+
+            if (estadoJogo === 'MENU') {
+                desenharTelaInicial();
+                return;
+            }
 
             const fase = fases[faseAtual];
-            if (imgFundo.complete && imgFundo.naturalWidth > 0) ctx.drawImage(imgFundo, 0, 0, canvas.width, canvas.height);
-            else { ctx.fillStyle = "#38bdf8"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+            if (imgFundo.complete && imgFundo.naturalWidth > 0) {
+                ctx.drawImage(imgFundo, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#38bdf8";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             ctx.save();
             ctx.translate(-cameraX, 0);
 
-            // CORREÇÃO DAS ÁRVORES DE FUNDO (Posicionadas perfeitamente apoiadas no chão)
             for (let plat of fase.plataformas) {
                 if (plat.largura >= 100) {
+                    let passoArvore = 110; 
                     let contador = 0;
-                    for (let ax = plat.x + 5; ax < plat.x + plat.largura - 20; ax += 110) {
+                    for (let ax = plat.x + 5; ax < plat.x + plat.largura - 20; ax += passoArvore) {
                         contador++;
-                        let arvoreEscolhida = (contador % 2 === 0 && imgArvore2.complete) ? imgArvore2 : imgArvore1;
-                        if (arvoreEscolhida.complete && arvoreEscolhida.naturalWidth > 0) {
-                            let altArvore = 280;
-                            ctx.drawImage(arvoreEscolhida, ax, plat.y - altArvore, 200, altArvore);
+                        let arvoreEscolhida = (contador % 2 === 0 && imgArvore2.complete && imgArvore2.naturalWidth > 0) ? imgArvore2 : imgArvore1;
+                        
+                        let seed = (ax * 37) % 100;
+                        let fatorTamanho = (seed % 3);
+                        let larguraArvore, alturaArvore;
+
+                        if (fatorTamanho === 0) {
+                            larguraArvore = 170 + (seed % 30);
+                            alturaArvore = 240 + (seed % 40);
+                        } else if (fatorTamanho === 1) {
+                            larguraArvore = 230 + (seed % 40);
+                            alturaArvore = 320 + (seed % 50);
+                        } else {
+                            larguraArvore = 290 + (seed % 50);
+                            alturaArvore = 400 + (seed % 60);
+                        }
+
+                        let margemSeguranca = 15;
+                        let limiteEsquerdoValido = plat.x + margemSeguranca;
+                        let limiteDireitoValido = plat.x + plat.largura - larguraArvore - margemSeguranca;
+
+                        if (ax >= limiteEsquerdoValido && ax <= limiteDireitoValido) {
+                            if (arvoreEscolhida.complete && arvoreEscolhida.naturalWidth > 0) {
+                                ctx.drawImage(arvoreEscolhida, ax, plat.y - alturaArvore + 25, larguraArvore, alturaArvore);
+                            }
                         }
                     }
                 }
             }
 
+            let xCastelo = fase.linhaDeChegada - 70;
+            let larguraCastelo = 490;
+            let alturaCastelo = 500;
+            let yCastelo = 500 - alturaCastelo + 20;
+
             if (imgCastelo.complete && imgCastelo.naturalWidth > 0) {
-                ctx.drawImage(imgCastelo, fase.linhaDeChegada - 70, 500 - 480, 490, 480);
+                ctx.drawImage(imgCastelo, xCastelo, yCastelo, larguraCastelo, alturaCastelo);
+            } else {
+                ctx.fillStyle = "#cbd5e1";
+                ctx.fillRect(xCastelo, 50, 500, 420);
             }
 
             for (let plat of fase.plataformas) {
                 if (imgBloco.complete && imgBloco.naturalWidth > 0) {
-                    let atualX = plat.x, restante = plat.largura;
-                    while (restante > 0) {
-                        let atual = Math.min(60, restante);
-                        ctx.drawImage(imgBloco, 0, 0, imgBloco.naturalWidth, imgBloco.naturalHeight, atualX, plat.y, atual, plat.altura);
-                        atualX += atual; restante -= atual;
+                    let tamanhoBloco = 60; 
+                    let larguraRestante = plat.largura;
+                    let atualX = plat.x;
+
+                    while (larguraRestante > 0) {
+                        let larguraAtual = Math.min(tamanhoBloco, larguraRestante);
+                        ctx.drawImage(imgBloco, 0, 0, imgBloco.naturalWidth, imgBloco.naturalHeight, atualX, plat.y, larguraAtual, plat.altura);
+                        atualX += larguraAtual;
+                        larguraRestante -= larguraAtual;
                     }
                 } else {
-                    ctx.fillStyle = "#78350f"; ctx.fillRect(plat.x, plat.y, plat.largura, plat.altura);
+                    ctx.fillStyle = "#78350f";
+                    ctx.fillRect(plat.x, plat.y, plat.largura, plat.altura);
+                    ctx.fillStyle = "#22c55e";
+                    ctx.fillRect(plat.x, plat.y, plat.largura, 10);
                 }
             }
 
             for (let esp of fase.espinhos) {
                 ctx.fillStyle = "#475569";
-                for (let i = 0; i < Math.floor(esp.largura / 15); i++) {
-                    ctx.beginPath(); ctx.moveTo(esp.x + (i * 15), 500); ctx.lineTo(esp.x + (i * 15) + 7.5, 472); ctx.lineTo(esp.x + (i * 15) + 15, 500); ctx.fill();
+                let numEspinhos = Math.floor(esp.largura / 15);
+                for (let i = 0; i < numEspinhos; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(esp.x + (i * 15), 500);
+                    ctx.lineTo(esp.x + (i * 15) + 7.5, 472);
+                    ctx.lineTo(esp.x + (i * 15) + 15, 500);
+                    ctx.fill();
                 }
             }
 
-            for (let g of fase.gatinhos) {
-                if (!g.pegou && imgGatinho.complete) ctx.drawImage(imgGatinho, g.x - 22, (g.y - 30) + (g.offsetY || 0), 45, 45);
+            for (let gatinho of fase.gatinhos) {
+                if (!gatinho.pegou) {
+                    let gx = gatinho.x - 22;
+                    let gy = (gatinho.y - 30) + (gatinho.offsetY || 0);
+                    if (imgGatinho.complete && imgGatinho.naturalWidth > 0) {
+                        ctx.drawImage(imgGatinho, gx, gy, 45, 45);
+                    } else {
+                        ctx.fillStyle = "#ffffff";
+                        ctx.beginPath();
+                        ctx.arc(gatinho.x, gatinho.y + gatinho.offsetY, 14, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
             }
 
-            for (let c of fase.coracoesExtras) {
-                if (!c.pegou) { ctx.font = "24px Arial"; ctx.textAlign = "center"; ctx.fillText("💖", c.x, c.y + (c.offsetY || 0)); }
+            for (let coracao of fase.coracoesExtras) {
+                if (!coracao.pegou) {
+                    ctx.font = "24px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText("💖", coracao.x, coracao.y + (coracao.offsetY || 0));
+                }
             }
 
             for (let inimigo of fase.inimigos) {
                 if (inimigo.vivo) {
-                    ctx.save(); ctx.translate(inimigo.x + inimigo.largura / 2, inimigo.y + inimigo.altura);
-                    if (inimigo.direcao < 0) ctx.scale(-1, 1);
-                    if (imgInimigoDiabinho.complete) {
-                        let q = Math.floor(inimigo.passo) % 5;
-                        let lw = imgInimigoDiabinho.naturalWidth / 5;
-                        ctx.drawImage(imgInimigoDiabinho, q * lw, 0, lw, imgInimigoDiabinho.naturalHeight, -inimigo.largura / 2 - 5, -inimigo.altura - 5, inimigo.largura + 10, inimigo.altura + 10);
+                    ctx.save();
+                    ctx.translate(inimigo.x + inimigo.largura / 2, inimigo.y + inimigo.altura);
+                    if (inimigo.direcao < 0) {
+                        ctx.scale(-1, 1);
+                    }
+
+                    if (imgInimigoDiabinho.complete && imgInimigoDiabinho.naturalWidth > 0) {
+                        const totalQuadros = 5;
+                        let larguraQuadro = imgInimigoDiabinho.naturalWidth / totalQuadros;
+                        let alturaQuadro = imgInimigoDiabinho.naturalHeight;
+                        let quadroAtual = Math.floor(inimigo.passo) % totalQuadros;
+
+                        ctx.drawImage(
+                            imgInimigoDiabinho,
+                            quadroAtual * larguraQuadro, 0, larguraQuadro, alturaQuadro,
+                            -inimigo.largura / 2 - 5, -inimigo.altura - 5, inimigo.largura + 10, inimigo.altura + 10
+                        );
+                    } else {
+                        ctx.fillStyle = "#dc2626";
+                        ctx.fillRect(-inimigo.largura / 2, -inimigo.altura, inimigo.largura, inimigo.altura);
                     }
                     ctx.restore();
                 }
             }
 
             for (let p of particulas) {
-                ctx.fillStyle = p.cor; ctx.globalAlpha = p.vida / 30; ctx.beginPath(); ctx.arc(p.x, p.y, p.tamanho, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
+                ctx.fillStyle = p.cor;
+                ctx.globalAlpha = p.vida / 30;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.tamanho, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
             }
 
             if (jogador.invulneravelTempo % 6 < 3) {
-                ctx.save(); ctx.translate(jogador.x + jogador.largura / 2, jogador.y + jogador.altura);
-                if (!jogador.olhandoDireita) ctx.scale(-1, 1);
-                let desenhado = false;
-                if (!jogador.noChao && imagemAcoes.complete) {
-                    let lw = imagemAcoes.naturalWidth / 4;
-                    ctx.drawImage(imagemAcoes, (Math.floor(Math.abs(jogador.velocidadeY) * 0.25) % 4) * lw, imagemAcoes.naturalHeight / 3, lw, imagemAcoes.naturalHeight / 3, -27.5, -98, 55, 98);
-                    desenhado = true;
-                } else if (Math.abs(jogador.velocidadeX) > 0 && imagemCorrida.complete) {
-                    let lw = imagemCorrida.naturalWidth / 5;
-                    ctx.drawImage(imagemCorrida, (Math.floor(jogador.passoAnimacao) % 5) * lw, 0, lw, imagemCorrida.naturalHeight, -27.5, -98, 55, 98);
-                    desenhado = true;
-                } else if ((teclas.baixo || jogador.tempoAterrissando > 0) && imagemAcoes.complete) {
-                    let lw = imagemAcoes.naturalWidth / 4;
-                    ctx.drawImage(imagemAcoes, 0, (imagemAcoes.naturalHeight / 3) * 2, lw, imagemAcoes.naturalHeight / 3, -27.5, -78, 55, 98);
-                    desenhado = true;
+                ctx.save();
+                ctx.translate(jogador.x + jogador.largura / 2, jogador.y + jogador.altura);
+                if (!jogador.olhandoDireita) {
+                    ctx.scale(-1, 1);
                 }
-                if (!desenhado && imagemRavena.complete) ctx.drawImage(imagemRavena, -21, -86, 42, 86);
+
+                const larguraMovimento = 55;
+                const alturaMovimento = 98;
+                const larguraParada = 42;
+                const alturaParada = 86;
+
+                let desenhado = false;
+
+                if (!jogador.noChao) {
+                    if (imagemAcoes && imagemAcoes.complete && imagemAcoes.naturalWidth > 0) {
+                        let larguraQuadro = imagemAcoes.naturalWidth / 4;
+                        let alturaQuadro = imagemAcoes.naturalHeight / 3;
+                        let colunaPulo = Math.floor(Math.abs(jogador.velocidadeY) * 0.25) % 4;
+                        ctx.drawImage(
+                            imagemAcoes,
+                            colunaPulo * larguraQuadro, 1 * alturaQuadro, larguraQuadro, alturaQuadro,
+                            -larguraMovimento / 2, -alturaMovimento, larguraMovimento, alturaMovimento
+                        );
+                        desenhado = true;
+                    }
+                } 
+                else if (Math.abs(jogador.velocidadeX) > 0) {
+                    if (imagemCorrida && imagemCorrida.complete && imagemCorrida.naturalWidth > 0) {
+                        const totalQuadrosCorrida = 5;
+                        let larguraQuadro = imagemCorrida.naturalWidth / totalQuadrosCorrida;
+                        let alturaQuadro = imagemCorrida.naturalHeight;
+                        let quadroAtual = Math.floor(jogador.passoAnimacao) % totalQuadrosCorrida;
+                        
+                        let margemRecorte = 3; 
+                        let sx = (quadroAtual * larguraQuadro) + margemRecorte;
+                        let sw = larguraQuadro - (margemRecorte * 2);
+
+                        ctx.drawImage(
+                            imagemCorrida,
+                            sx, 0, sw, alturaQuadro,
+                            -larguraMovimento / 2, -alturaMovimento, larguraMovimento, alturaMovimento
+                        );
+                        desenhado = true;
+                    }
+                }
+                else if (teclas.baixo || jogador.tempoAterrissando > 0) {
+                    if (imagemAcoes && imagemAcoes.complete && imagemAcoes.naturalWidth > 0) {
+                        let larguraQuadro = imagemAcoes.naturalWidth / 4;
+                        let alturaQuadro = imagemAcoes.naturalHeight / 3;
+                        ctx.drawImage(
+                            imagemAcoes,
+                            0, 2 * alturaQuadro, larguraQuadro, alturaQuadro,
+                            -larguraMovimento / 2, -alturaMovimento + 20, larguraMovimento, alturaMovimento
+                        );
+                        desenhado = true;
+                    }
+                }
+
+                if (!desenhado && imagemRavena && imagemRavena.complete && imagemRavena.naturalWidth > 0) {
+                    ctx.drawImage(
+                        imagemRavena,
+                        -larguraParada / 2, -alturaParada, larguraParada, alturaParada
+                    );
+                }
+
                 ctx.restore();
             }
 
             ctx.restore();
 
             // --- HUD ---
-            ctx.fillStyle = "#0f172a"; ctx.font = "bold 15px Arial"; ctx.textAlign = "left";
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "bold 15px Arial";
+            ctx.textAlign = "left";
+            
             ctx.fillText(`Fase ${faseAtual + 1}`, 20, 30);
-            let textoVidas = ""; for (let i = 0; i < MAX_VIDAS; i++) textoVidas += i < vidas ? "❤️ " : "🖤 ";
+
+            let textoVidas = "";
+            for (let i = 0; i < MAX_VIDAS; i++) {
+                textoVidas += i < vidas ? "❤️ " : "🖤 ";
+            }
             ctx.fillText(`Vida: ${textoVidas}`, 150, 30);
             ctx.fillText(`🐱 ${gatinhosResgatadosFase}/${gatinhosTotaisFase}`, 340, 30);
             ctx.fillText(`💰 ${moedasTotais}`, 470, 30);
             ctx.fillText(`⭐ ${pontosTotais}`, 570, 30);
             ctx.fillText(`⏱️ ${tempoRestante}s`, 730, 30);
 
-            ctx.fillStyle = "#9333ea"; ctx.beginPath(); ctx.roundRect(btnPauseArea.x, btnPauseArea.y, btnPauseArea.largura, btnPauseArea.altura, 10); ctx.fill();
-            ctx.fillStyle = "#ffffff"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
+            ctx.fillStyle = "#9333ea";
+            ctx.beginPath();
+            ctx.roundRect(btnPauseArea.x, btnPauseArea.y, btnPauseArea.largura, btnPauseArea.altura, 10);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 14px Arial";
+            ctx.textAlign = "center";
             ctx.fillText("⏸️ PAUSE", btnPauseArea.x + btnPauseArea.largura / 2, btnPauseArea.y + 22);
 
             if (estadoJogo === 'PAUSADO') {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.75)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = "#d8b4fe"; ctx.font = "bold 38px Arial"; ctx.fillText("⏸️ JOGO PAUSADO", canvas.width / 2, 210);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#d8b4fe";
+                ctx.font = "bold 38px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("⏸️ JOGO PAUSADO", canvas.width / 2, 210);
+
                 desenharBotao("CONTINUAR ▶️", canvas.width / 2, 300);
             } else if (estadoJogo === 'FASE_CONCLUIDA') {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.88)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                let imgH = (faseAtual === 0) ? imgRavenaVitoria : imgRavenaCoracao;
-                if (imgH.complete) {
-                    let lh = (imgH.naturalWidth / imgH.naturalHeight) * 420;
-                    ctx.drawImage(imgH, 100, 60, lh, 420);
-                    if (imgGatinho.complete) ctx.drawImage(imgGatinho, 100 + lh - 30, 60 + 420 - 110, 120, 120);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                let imgHeroina = (faseAtual === 0) ? imgRavenaVitoria : imgRavenaCoracao;
+                let posXHeroina = 100;
+                let posYHeroina = 60;
+                let altHeroina = 420;
+
+                if (imgHeroina.complete && imgHeroina.naturalWidth > 0) {
+                    let largHeroina = (imgHeroina.naturalWidth / imgHeroina.naturalHeight) * altHeroina;
+                    ctx.drawImage(imgHeroina, posXHeroina, posYHeroina, largHeroina, altHeroina);
+
+                    if (imgGatinho.complete && imgGatinho.naturalWidth > 0) {
+                        let tamanhoGatinhoPe = 120;
+                        ctx.drawImage(
+                            imgGatinho, 
+                            posXHeroina + largHeroina - 30, 
+                            posYHeroina + altHeroina - tamanhoGatinhoPe + 10, 
+                            tamanhoGatinhoPe, 
+                            tamanhoGatinhoPe
+                        );
+                    }
                 }
-                ctx.fillStyle = "#4ade80"; ctx.font = "bold 32px Arial"; ctx.fillText("🎉 FASE CONCLUÍDA!", 720, 130);
-                ctx.font = "38px Arial"; let estrelasStr = ""; for (let e = 1; e <= 3; e++) estrelasStr += e <= estrelasFaseAtual ? "⭐ " : "☆ ";
-                ctx.fillText(estrelasStr, 720, 185);
-                ctx.fillStyle = "#ffffff"; ctx.font = "18px Arial";
-                ctx.fillText(`Gatinhos salvos: ${gatinhosResgatadosFase} / ${gatinhosTotaisFase}`, 720, 230);
-                ctx.fillText(`Pontos ganhos: +${pontosFaseAtual} (Total: ${pontosTotais})`, 720, 260);
-                ctx.fillText(`Moedas: +${moedasFaseAtual} (Total: ${moedasTotais})`, 720, 290);
-                if (faseAtual + 1 < fases.length) desenharBotao("PRÓXIMA FASE ➔", 720, 370);
-                else { ctx.fillStyle = "#facc15"; ctx.font = "bold 20px Arial"; ctx.fillText("🏆 VOCÊ ZEROU O JOGO!", 720, 340); desenharBotao("JOGAR NOVAMENTE 🔄", 720, 410); }
+
+                let posXStats = 720;
+
+                ctx.fillStyle = "#4ade80";
+                ctx.font = "bold 32px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("🎉 FASE CONCLUÍDA!", posXStats, 130);
+
+                ctx.font = "38px Arial";
+                let textoEstrelas = "";
+                for (let e = 1; e <= 3; e++) {
+                    textoEstrelas += e <= estrelasFaseAtual ? "⭐ " : "☆ ";
+                }
+                ctx.fillText(textoEstrelas, posXStats, 185);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "18px Arial";
+                ctx.fillText(`Gatinhos salvos: ${gatinhosResgatadosFase} / ${gatinhosTotaisFase}`, posXStats, 230);
+                ctx.fillText(`Pontos ganhos: +${pontosFaseAtual} (Total: ${pontosTotais})`, posXStats, 260);
+                ctx.fillText(`Moedas coletadas: +${moedasFaseAtual} (Total: ${moedasTotais})`, posXStats, 290);
+
+                if (faseAtual + 1 < fases.length) {
+                    desenharBotao("PRÓXIMA FASE ➔", posXStats, 370);
+                } else {
+                    ctx.fillStyle = "#facc15";
+                    ctx.font = "bold 20px Arial";
+                    ctx.fillText("🏆 VOCÊ ZEROU O JOGO! PARABÉNS!", posXStats, 340);
+                    desenharBotao("JOGAR NOVAMENTE 🔄", posXStats, 410);
+                }
             } else if (estadoJogo === 'GAME_OVER') {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.88)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                if (imgRavenaDerrota.complete) {
-                    let ld = (imgRavenaDerrota.naturalWidth / imgRavenaDerrota.naturalHeight) * 380;
-                    ctx.drawImage(imgRavenaDerrota, 120, 80, ld, 380);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (imgRavenaDerrota.complete && imgRavenaDerrota.naturalWidth > 0) {
+                    let altDerrota = 380;
+                    let largDerrota = (imgRavenaDerrota.naturalWidth / imgRavenaDerrota.naturalHeight) * altDerrota;
+                    ctx.drawImage(imgRavenaDerrota, 120, 80, largDerrota, altDerrota);
                 }
-                ctx.fillStyle = "#f87171"; ctx.font = "bold 32px Arial"; ctx.fillText("❌ OPS! NÃO FOI DESTA VEZ!", 680, 180);
-                ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial"; ctx.fillText(mensagemDerrota, 680, 235);
-                desenharBotao("TENTAR NOVAMENTE 🔄", 680, 330);
+
+                let posXGameOver = 680;
+
+                ctx.fillStyle = "#f87171";
+                ctx.font = "bold 32px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("❌ OPS! NÃO FOI DESTA VEZ!", posXGameOver, 180);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "20px Arial";
+                ctx.fillText(mensagemDerrota, posXGameOver, 235);
+
+                desenharBotao("TENTAR NOVAMENTE 🔄", posXGameOver, 330);
             }
         }
 
         function desenharTelaInicial() {
-            ctx.fillStyle = "#0f172a"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "#d8b4fe"; ctx.font = "bold 36px Arial"; ctx.textAlign = "center";
+            ctx.fillStyle = "#0f172a";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "#d8b4fe";
+            ctx.font = "bold 36px Arial";
+            ctx.textAlign = "center";
             ctx.fillText("✨ O Resgate dos Gatinhos da Ravena 🐱", canvas.width / 2, 60);
-            if (imgRavenaInicial.complete) {
-                let li = (imgRavenaInicial.naturalWidth / imgRavenaInicial.naturalHeight) * 300;
-                ctx.drawImage(imgRavenaInicial, canvas.width / 2 - li / 2, 85, li, 300);
+
+            if (imgRavenaInicial.complete && imgRavenaInicial.naturalWidth > 0) {
+                let altInicial = 300;
+                let largInicial = (imgRavenaInicial.naturalWidth / imgRavenaInicial.naturalHeight) * altInicial;
+                ctx.drawImage(imgRavenaInicial, canvas.width / 2 - largInicial / 2, 85, largInicial, altInicial);
             }
-            ctx.fillStyle = "#e2e8f0"; ctx.font = "18px Arial";
+
+            ctx.fillStyle = "#e2e8f0";
+            ctx.font = "18px Arial";
             ctx.fillText("Ajude a Ravena a salvar os gatinhos pelas florestas mágicas!", canvas.width / 2, 410);
+
             desenharBotao("INICIAR AVENTURA ▶️", canvas.width / 2, 460);
         }
 
         function desenharBotao(texto, x, y) {
-            ctx.fillStyle = "#9333ea"; ctx.beginPath(); ctx.roundRect(x - 140, y - 28, 280, 56, 14); ctx.fill();
-            ctx.fillStyle = "#ffffff"; ctx.font = "bold 18px Arial"; ctx.textAlign = "center"; ctx.fillText(texto, x, y + 6);
+            ctx.fillStyle = "#9333ea";
+            ctx.beginPath();
+            ctx.roundRect(x - 140, y - 28, 280, 56, 14);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 18px Arial";
+            ctx.fillText(texto, x, y + 6);
         }
 
         let ultimoTempo = 0, acumulador = 0;
