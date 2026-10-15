@@ -440,6 +440,8 @@
                 pontosTotais = 0;
                 moedasTotais = 0;
                 carregarFase(0);
+                // Força o play da música da fase 1 no primeiro toque do menu mobile
+                musicaFase1.play().catch(e => console.log("Áudio liberado por toque"));
             } else if (estadoJogo === 'PAUSADO') {
                 estadoJogo = 'JOGANDO';
                 alternarMusicaFundo(faseAtual);
@@ -522,6 +524,7 @@
                     pontosTotais = 0;
                     moedasTotais = 0;
                     carregarFase(0);
+                    musicaFase1.play().catch(e => {}); // Garante o play no toque da tela inicial
                 }
                 return;
             }
